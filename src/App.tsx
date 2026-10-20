@@ -11,6 +11,7 @@ import { LegalPage } from './pages/LegalPage';
 // Admin Routes
 import { AdminLayout } from './admin/layouts/AdminLayout';
 import { AdminProtectedRoute } from './admin/components/AdminProtectedRoute';
+import { AdminLoginPage } from './admin/pages/AdminLoginPage';
 import { AdminDashboardPage } from './admin/pages/AdminDashboardPage';
 import { AdminGamesPage } from './admin/pages/AdminGamesPage';
 import { AdminProductsPage } from './admin/pages/AdminProductsPage';
@@ -35,7 +36,10 @@ function App() {
             <Route path="/privacy" element={<LegalPage />} />
           </Route>
 
-          {/* Admin Management Routes */}
+          {/* Dedicated Admin Portal Sign In / Register */}
+          <Route path="/admin/login" element={<AdminLoginPage />} />
+
+          {/* Protected Admin Management Routes */}
           <Route
             path="/admin"
             element={
