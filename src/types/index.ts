@@ -60,9 +60,11 @@ export interface Product {
   active: boolean;
   featured: boolean;
   sort_order: number;
-  delivery_type: 'instant_api' | 'manual' | 'voucher';
+  delivery_type: DeliveryType;
   bonus_text?: string;
 }
+
+export type DeliveryType = 'instant_api' | 'manual' | 'voucher';
 
 export type PaymentMethodId = 'gcash' | 'maya' | 'grabpay' | 'card' | 'qrph' | 'bank_transfer';
 

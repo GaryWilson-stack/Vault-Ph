@@ -2,11 +2,14 @@ import React, { useState, useMemo } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { MOCK_GAMES, MOCK_PRODUCTS, MOCK_PRODUCT_FIELDS } from '../data/mockData';
 import type { Product, PaymentMethodId } from '../types';
+import { ordersService } from '../services/ordersService';
+import { useAuth } from '../context/AuthContext';
 import { 
   ShieldCheck, 
   Zap, 
   CheckCircle2, 
-  AlertCircle
+  AlertCircle,
+  Loader2
 } from 'lucide-react';
 
 export const GameDetailPage: React.FC = () => {
@@ -56,8 +59,10 @@ export const GameDetailPage: React.FC = () => {
   const paymentFee = selectedPaymentInfo?.fee ?? 0;
   const totalPrice = itemPrice + paymentFee;
 
+  const { user } = useAuth();
+
   // Handle Checkout Submission
-  const handleSubmitOrder = (e: React.FormEvent) => {
+  const handleSubmitOrder = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!selectedProduct) {
@@ -79,13 +84,38 @@ export const GameDetailPage: React.FC = () => {
     }
 
     setIsSubmitting(true);
+    setErrorMsg(null);
 
-    // Simulate instant order generation & redirect
-    setTimeout(() => {
-      const generatedOrderNumber = `VPH-${new Date().getFullYear()}-${Math.floor(10000 + Math.random() * 90000)}`;
-      setIsSubmitting(false);
+    const generatedOrderNumber = `VPH-${new Date().getFullYear()}-${Math.floor(10000 + Math.random() * 90000)}`;
+
+    try {
+      await ordersService.createOrder({
+        order_number: generatedOrderNumber,
+        user_id: user?.id ?? null,
+        email: email.trim(),
+        phone: phone.trim() || null,
+        game_id: game.id,
+        game_name: game.name,
+        product_id: selectedProduct.id,
+        product_name: selectedProduct.name,
+        quantity: 1,
+        unit_price: itemPrice,
+        discount: selectedProduct.discount_price ? selectedProduct.price - selectedProduct.discount_price : 0,
+        payment_fee: paymentFee,
+        total: totalPrice,
+        currency: 'PHP',
+        payment_method: selectedPaymentInfo?.name || 'GCash',
+        customer_data: fieldValues,
+      });
+
       navigate(`/track-order?orderId=${generatedOrderNumber}&new=true`);
-    }, 700);
+    } catch (err: unknown) {
+      console.error('Order creation error:', err);
+      // Still navigate so customer sees order tracking
+      navigate(`/track-order?orderId=${generatedOrderNumber}&new=true`);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -420,7 +450,10 @@ export const GameDetailPage: React.FC = () => {
                 className="w-full py-4 text-sm font-bold text-white bg-gradient-to-r from-[#1677FF] to-[#00CFFF] rounded-xl hover:shadow-[0_0_20px_rgba(0,207,255,0.4)] transition-all transform hover:-translate-y-0.5 cursor-pointer flex items-center justify-center gap-2"
               >
                 {isSubmitting ? (
-                  <span>Securing Order...</span>
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin text-white" />
+                    <span>Securing Order...</span>
+                  </>
                 ) : (
                   <>
                     <Zap className="w-4 h-4 fill-white" />

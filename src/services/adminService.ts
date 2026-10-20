@@ -63,20 +63,30 @@ export const adminService = {
   // ===================== ORDERS MANAGEMENT =====================
   async getAllOrders(): Promise<{ orders: Order[]; error: Error | null }> {
     try {
+      const localOrders = getCachedData<Order[]>(STORAGE_KEYS.ORDERS, []);
       const { data, error } = await supabase
         .from('orders')
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (error || !data || data.length === 0) {
-        // Fallback to locally tracked orders
-        const localOrders = getCachedData<Order[]>(STORAGE_KEYS.ORDERS, []);
+      if (error || !data) {
         return { orders: localOrders, error: null };
       }
 
-      // Sync local cache
-      setCachedData(STORAGE_KEYS.ORDERS, data as Order[]);
-      return { orders: data as Order[], error: null };
+      // Merge Supabase orders with any local orders that haven't synced yet
+      const combinedMap = new Map<string, Order>();
+      // 1. Put local orders
+      localOrders.forEach((o) => combinedMap.set(o.order_number, o));
+      // 2. Put / overwrite with Supabase orders
+      (data as Order[]).forEach((o) => combinedMap.set(o.order_number, o));
+
+      const mergedList = Array.from(combinedMap.values()).sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
+
+      // Keep local cache up to date
+      setCachedData(STORAGE_KEYS.ORDERS, mergedList);
+      return { orders: mergedList, error: null };
     } catch {
       const localOrders = getCachedData<Order[]>(STORAGE_KEYS.ORDERS, []);
       return { orders: localOrders, error: null };

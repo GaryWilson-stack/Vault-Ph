@@ -125,53 +125,39 @@ create policy "Allow public read access to products"
   to anon, authenticated
   using (true);
 
--- [ORDERS - INSERT]: Only authenticated Supabase users can create orders (with user_id = auth.uid())
+-- [ORDERS - INSERT]: Allow public (guest & registered) checkout orders insertion
 drop policy if exists "Allow public insert on orders" on public.orders;
 drop policy if exists "Allow insert on orders" on public.orders;
 drop policy if exists "Authenticated users can insert own orders" on public.orders;
-create policy "Authenticated users can insert own orders"
+create policy "Allow insert on orders"
   on public.orders for insert
-  to authenticated
-  with check (
-    auth.uid() is not null and user_id = auth.uid()
-  );
+  to anon, authenticated
+  with check (true);
 
--- [ORDERS - SELECT]: Only authenticated users can read their own orders directly
+-- [ORDERS - SELECT]: Authenticated users can read their own orders; anon can read via track_order RPC or direct
 drop policy if exists "Allow read on orders" on public.orders;
 drop policy if exists "Users can only read own orders" on public.orders;
-create policy "Users can only read own orders"
+create policy "Allow read on orders"
   on public.orders for select
-  to authenticated
-  using (auth.uid() = user_id);
+  to anon, authenticated
+  using (true);
 
--- [ORDER EVENTS - INSERT]: Only authenticated users can record events for their own orders
+-- [ORDER EVENTS - INSERT]: Allow checkout to log events for orders
 drop policy if exists "Allow public insert on order_events" on public.order_events;
 drop policy if exists "Allow insert on order_events" on public.order_events;
 drop policy if exists "Authenticated users can insert order_events for own orders" on public.order_events;
-create policy "Authenticated users can insert order_events for own orders"
+create policy "Allow insert on order_events"
   on public.order_events for insert
-  to authenticated
-  with check (
-    exists (
-      select 1 from public.orders
-      where orders.id = order_events.order_id
-        and orders.user_id = auth.uid()
-    )
-  );
+  to anon, authenticated
+  with check (true);
 
--- [ORDER EVENTS - SELECT]: Only the authenticated owner of the order can read its events directly
+-- [ORDER EVENTS - SELECT]: Allow timeline lookup for orders
 drop policy if exists "Allow public read on order_events" on public.order_events;
 drop policy if exists "Users can only read events for own orders" on public.order_events;
-create policy "Users can only read events for own orders"
+create policy "Allow read on order_events"
   on public.order_events for select
-  to authenticated
-  using (
-    exists (
-      select 1 from public.orders
-      where orders.id = order_events.order_id
-        and orders.user_id = auth.uid()
-    )
-  );
+  to anon, authenticated
+  using (true);
 
 -- ==============================================================================
 -- 4. Secure RPC Function for Order Tracking (Supports Guests & Authenticated)

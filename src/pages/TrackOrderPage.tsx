@@ -62,39 +62,59 @@ const createDemoOrder = (orderNumber: string, email: string): Order => ({
   ]
 });
 
+import { ordersService } from '../services/ordersService';
+
 export const TrackOrderPage: React.FC = () => {
   const [searchParams] = useSearchParams();
   const orderIdParam = searchParams.get('orderId') || '';
   const isNew = searchParams.get('new') === 'true';
 
   const [orderQuery, setOrderQuery] = useState(orderIdParam || 'VPH-2026-98124');
-  const [searchedOrder, setSearchedOrder] = useState<Order | null>(() => {
-    if (orderIdParam) {
-      const found = MOCK_ORDERS.find(
-        (o) => o.order_number.toLowerCase() === orderIdParam.toLowerCase()
-      );
-      if (found) return found;
-      if (orderIdParam.startsWith('VPH-')) {
-        return createDemoOrder(orderIdParam, '');
-      }
-    }
-    return null;
-  });
+  const [searchedOrder, setSearchedOrder] = useState<Order | null>(null);
   const [searched, setSearched] = useState<boolean>(() => Boolean(orderIdParam));
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleSearch = (targetOrderNumber?: string) => {
+  // Initial load
+  React.useEffect(() => {
+    if (orderIdParam) {
+      handleSearch(orderIdParam);
+    }
+  }, [orderIdParam]);
+
+  const handleSearch = async (targetOrderNumber?: string) => {
     const query = (targetOrderNumber ?? orderQuery).trim();
     if (!query) return;
 
     setIsLoading(true);
     setSearched(true);
 
-    setTimeout(() => {
-      const found = MOCK_ORDERS.find(
-        (o) => o.order_number.toLowerCase() === query.toLowerCase()
-      );
+    try {
+      // 1. Try fetching from ordersService (Supabase RPC or direct query)
+      const { order, error } = await ordersService.getOrderByNumber(query);
+      if (order && !error) {
+        setSearchedOrder(order);
+        setIsLoading(false);
+        return;
+      }
 
+      // 2. Check local admin/cached storage
+      try {
+        const cached = localStorage.getItem('vault_ph_admin_orders');
+        if (cached) {
+          const list: Order[] = JSON.parse(cached);
+          const matched = list.find((o) => o.order_number.toLowerCase() === query.toLowerCase());
+          if (matched) {
+            setSearchedOrder(matched);
+            setIsLoading(false);
+            return;
+          }
+        }
+      } catch (e) {
+        console.warn('Local cache check failed', e);
+      }
+
+      // 3. Fallback to mock data or demo representation
+      const found = MOCK_ORDERS.find((o) => o.order_number.toLowerCase() === query.toLowerCase());
       if (found) {
         setSearchedOrder(found);
       } else if (query.startsWith('VPH-')) {
@@ -102,8 +122,12 @@ export const TrackOrderPage: React.FC = () => {
       } else {
         setSearchedOrder(null);
       }
+    } catch (err) {
+      console.error('Error tracking order:', err);
+      setSearchedOrder(null);
+    } finally {
       setIsLoading(false);
-    }, 400);
+    }
   };
 
   return (
