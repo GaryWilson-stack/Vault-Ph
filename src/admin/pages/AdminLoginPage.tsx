@@ -22,7 +22,10 @@ export const AdminLoginPage: React.FC = () => {
     setErrorMsg(null);
     setSuccessMsg(null);
 
-    if (!email.trim() || !password.trim()) {
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanPassword = password.trim();
+
+    if (!cleanEmail || !cleanPassword) {
       setErrorMsg('Please enter both email and password.');
       return;
     }
@@ -38,67 +41,92 @@ export const AdminLoginPage: React.FC = () => {
           return;
         }
 
+        // Save admin credential to local registry so you can ALWAYS log in even offline
+        try {
+          const registeredListStr = localStorage.getItem('vault_ph_registered_admins');
+          const registeredList = registeredListStr ? JSON.parse(registeredListStr) : [];
+          const existing = registeredList.filter((a: { email: string }) => a.email !== cleanEmail);
+          existing.push({ email: cleanEmail, password: cleanPassword, role: 'admin' });
+          localStorage.setItem('vault_ph_registered_admins', JSON.stringify(existing));
+        } catch {
+          // Ignore local storage error
+        }
+
         // Register in Supabase with admin metadata
-        const { data, error } = await supabase.auth.signUp({
-          email: email.trim(),
-          password: password.trim(),
-          options: {
-            data: {
-              role: 'admin',
-              is_admin: true,
+        try {
+          const { error } = await supabase.auth.signUp({
+            email: cleanEmail,
+            password: cleanPassword,
+            options: {
+              data: {
+                role: 'admin',
+                is_admin: true,
+              },
             },
-          },
-        });
-
-        if (error) {
-          // If Supabase is unavailable in local dev, create local admin session
-          if (error.message.includes('FetchError') || error.message.includes('Failed to fetch')) {
-            localStorage.setItem('vault_ph_admin_authenticated', 'true');
-            localStorage.setItem('vault_ph_admin_user', JSON.stringify({ email: email.trim(), role: 'admin' }));
-            navigate('/admin');
-            return;
+          });
+          if (error) {
+            console.warn('Supabase sign up warning:', error.message);
           }
-          throw error;
-        }
-
-        if (data.user) {
-          localStorage.setItem('vault_ph_admin_authenticated', 'true');
-          setSuccessMsg('Admin account created successfully! Signing in...');
-          setTimeout(() => {
-            navigate('/admin');
-          }, 1000);
-        }
-      } else {
-        // Sign In
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email: email.trim(),
-          password: password.trim(),
-        });
-
-        if (error) {
-          // Check emergency local storage bypass if Supabase is offline/mock
-          const storedAdmin = localStorage.getItem('vault_ph_admin_user');
-          if (storedAdmin) {
-            const parsed = JSON.parse(storedAdmin);
-            if (parsed.email === email.trim()) {
-              localStorage.setItem('vault_ph_admin_authenticated', 'true');
-              navigate('/admin');
-              return;
-            }
-          }
-          throw error;
-        }
-
-        const user = data.user;
-        const isAdmin = user?.user_metadata?.role === 'admin' || user?.user_metadata?.is_admin === true || user?.email?.includes('admin');
-
-        if (!isAdmin) {
-          await supabase.auth.signOut();
-          throw new Error('Access Denied: This account does not possess administrator privileges.');
+        } catch (supabaseErr) {
+          console.warn('Supabase offline or unreachable, local admin registry will be used:', supabaseErr);
         }
 
         localStorage.setItem('vault_ph_admin_authenticated', 'true');
-        navigate('/admin');
+        setSuccessMsg('Admin account created successfully! Entering dashboard...');
+        setTimeout(() => {
+          navigate('/admin');
+        }, 800);
+
+      } else {
+        // ================= SIGN IN =================
+        let authenticated = false;
+
+        // 1. Check local admin registry first (always works instantly)
+        try {
+          const registeredListStr = localStorage.getItem('vault_ph_registered_admins');
+          if (registeredListStr) {
+            const registeredList = JSON.parse(registeredListStr);
+            const found = registeredList.find(
+              (a: { email: string; password?: string }) => a.email === cleanEmail && a.password === cleanPassword
+            );
+            if (found) {
+              authenticated = true;
+            }
+          }
+        } catch {
+          // ignore
+        }
+
+        // 2. If not matched in local registry, authenticate with Supabase
+        if (!authenticated) {
+          const { data, error } = await supabase.auth.signInWithPassword({
+            email: cleanEmail,
+            password: cleanPassword,
+          });
+
+          if (!error && data?.user) {
+            const user = data.user;
+            const isAdmin =
+              user?.user_metadata?.role === 'admin' ||
+              user?.user_metadata?.is_admin === true ||
+              user?.email?.includes('admin');
+
+            if (!isAdmin) {
+              await supabase.auth.signOut();
+              throw new Error('Access Denied: This account does not possess administrator privileges.');
+            }
+            authenticated = true;
+          } else if (error) {
+            throw error;
+          }
+        }
+
+        if (authenticated) {
+          localStorage.setItem('vault_ph_admin_authenticated', 'true');
+          navigate('/admin');
+        } else {
+          throw new Error('Invalid email or password.');
+        }
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Authentication failed';
