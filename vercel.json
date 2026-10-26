@@ -1,6 +1,10 @@
 {
   "rewrites": [
     {
+      "source": "/api/eyad",
+      "destination": "/api/eyad.ts"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }

@@ -5,6 +5,7 @@ import {
   ShoppingBag, 
   Gamepad2, 
   Layers, 
+  Server,
   Sliders, 
   ArrowLeft, 
   LogOut, 
@@ -27,6 +28,7 @@ export const AdminLayout: React.FC = () => {
     { name: 'Orders', path: '/admin/orders', icon: ShoppingBag },
     { name: 'Games Catalog', path: '/admin/games', icon: Gamepad2 },
     { name: 'Products & Tiers', path: '/admin/products', icon: Layers },
+    { name: 'Eyad Supplier API', path: '/admin/supplier', icon: Server },
     { name: 'Settings & API', path: '/admin/settings', icon: Sliders },
   ];
 

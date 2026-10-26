@@ -16,6 +16,7 @@ import { AdminDashboardPage } from './admin/pages/AdminDashboardPage';
 import { AdminGamesPage } from './admin/pages/AdminGamesPage';
 import { AdminProductsPage } from './admin/pages/AdminProductsPage';
 import { AdminOrdersPage } from './admin/pages/AdminOrdersPage';
+import { AdminSupplierPage } from './admin/pages/AdminSupplierPage';
 
 function App() {
   return (
@@ -52,6 +53,7 @@ function App() {
             <Route path="games" element={<AdminGamesPage />} />
             <Route path="products" element={<AdminProductsPage />} />
             <Route path="orders" element={<AdminOrdersPage />} />
+            <Route path="supplier" element={<AdminSupplierPage />} />
             <Route path="settings" element={<Navigate to="/admin" replace />} />
           </Route>
 
