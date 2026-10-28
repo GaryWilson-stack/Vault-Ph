@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { adminService } from '../../services/adminService';
+import { eyadStoreService } from '../../services/eyadStoreService';
 import type { Order, OrderFulfillmentStatus, OrderPaymentStatus, OrderStatus } from '../../types';
 import { 
   Search, 
@@ -7,7 +8,11 @@ import {
   RefreshCw, 
   Eye, 
   X,
-  Send
+  Send,
+  Zap,
+  CheckCircle,
+  AlertTriangle,
+  Loader2
 } from 'lucide-react';
 
 export const AdminOrdersPage: React.FC = () => {
@@ -24,6 +29,10 @@ export const AdminOrdersPage: React.FC = () => {
   const [paymentStatus, setPaymentStatus] = useState<OrderPaymentStatus>('PAID');
   const [internalNotes, setInternalNotes] = useState('');
   const [saving, setSaving] = useState(false);
+
+  // Supplier Fulfillment State
+  const [dispatchingSupplier, setDispatchingSupplier] = useState(false);
+  const [supplierResult, setSupplierResult] = useState<{ success: boolean; message: string } | null>(null);
 
   useEffect(() => {
     loadOrders();
@@ -64,6 +73,52 @@ export const AdminOrdersPage: React.FC = () => {
     setOrderStatus(order.order_status);
     setPaymentStatus(order.payment_status);
     setInternalNotes(order.internal_notes || '');
+    setSupplierResult(null);
+  };
+
+  const handleDispatchEyadStore = async () => {
+    if (!selectedOrder) return;
+    setDispatchingSupplier(true);
+    setSupplierResult(null);
+
+    try {
+      const targetUserId =
+        selectedOrder.customer_data?.user_id ||
+        selectedOrder.customer_data?.uid ||
+        selectedOrder.customer_data?.riot_id ||
+        Object.values(selectedOrder.customer_data || {})[0];
+
+      if (!targetUserId) {
+        throw new Error('No player/user account identifier found in order data.');
+      }
+
+      const serverOrZone = selectedOrder.customer_data?.zone_id || selectedOrder.customer_data?.server;
+
+      const res = await eyadStoreService.placeOrder({
+        package_id: selectedOrder.product_id,
+        user_id: String(targetUserId),
+        zone_id: serverOrZone,
+        server: serverOrZone,
+        payment_reference: selectedOrder.order_number,
+        max_charge_usd: 15.00
+      });
+
+      const noteText = `[Eyad Store API Auto-Dispatch] Success: Order ID ${res.order_id || 'N/A'}, charged: $${res.charge_usd || 0} USD`;
+      setInternalNotes((prev) => (prev ? `${prev}\n${noteText}` : noteText));
+      setFulfillmentStatus('COMPLETED');
+      setOrderStatus('COMPLETED');
+      setSupplierResult({
+        success: true,
+        message: `Order fulfilled successfully via Eyad Store! Upstream Order ID: ${res.order_id || 'N/A'}`
+      });
+    } catch (err: any) {
+      setSupplierResult({
+        success: false,
+        message: err.message || 'Failed to dispatch to Eyad Store API.'
+      });
+    } finally {
+      setDispatchingSupplier(false);
+    }
   };
 
   const handleSaveOrderStatus = async () => {
@@ -260,6 +315,53 @@ export const AdminOrdersPage: React.FC = () => {
                 <span className="text-gray-400">Total Charged:</span>
                 <span className="font-bold text-[#00CFFF] text-base">₱{Number(selectedOrder.total).toLocaleString()}</span>
               </div>
+            </div>
+
+            {/* Direct Supplier Fulfillment (Eyad Store Integration) */}
+            <div className="bg-[#050B18] p-4 rounded-xl border border-[#00CFFF]/20 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Zap className="w-4 h-4 text-[#00CFFF]" />
+                  <span className="text-xs font-bold uppercase tracking-wider text-white">
+                    Direct Supplier Fulfillment (Eyad Store)
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  disabled={dispatchingSupplier || selectedOrder.fulfillment_status === 'COMPLETED'}
+                  onClick={handleDispatchEyadStore}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-[#00CFFF]/15 hover:bg-[#00CFFF]/25 text-[#00CFFF] border border-[#00CFFF]/30 rounded-lg text-xs font-bold transition disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {dispatchingSupplier ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      Dispatching...
+                    </>
+                  ) : (
+                    <>
+                      <Zap className="w-3.5 h-3.5" />
+                      Instant API Fulfillment
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {supplierResult && (
+                <div
+                  className={`p-2.5 rounded-lg text-xs flex items-center gap-2 ${
+                    supplierResult.success
+                      ? 'bg-[#22C55E]/15 border border-[#22C55E]/30 text-[#22C55E]'
+                      : 'bg-rose-500/15 border border-rose-500/30 text-rose-400'
+                  }`}
+                >
+                  {supplierResult.success ? (
+                    <CheckCircle className="w-4 h-4 shrink-0" />
+                  ) : (
+                    <AlertTriangle className="w-4 h-4 shrink-0" />
+                  )}
+                  <span>{supplierResult.message}</span>
+                </div>
+              )}
             </div>
 
             {/* Admin Controls */}

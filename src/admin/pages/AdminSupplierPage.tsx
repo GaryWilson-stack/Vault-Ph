@@ -10,7 +10,9 @@ import {
   Search, 
   ShieldCheck,
   Zap,
-  Info
+  Info,
+  TrendingUp,
+  Sliders
 } from 'lucide-react';
 import { 
   eyadStoreService, 
@@ -32,8 +34,36 @@ export const AdminSupplierPage: React.FC = () => {
   const [packages, setPackages] = useState<EyadPackage[]>([]);
   const [loadingPackages, setLoadingPackages] = useState(false);
 
-  // Currency exchange estimate (USD to PHP)
-  const usdToPhpRate = 58.5; // Standard benchmark rate
+  // Dynamic Exchange Rate & Profit Margin Controls (persisted in localStorage)
+  const [usdToPhpRate, setUsdToPhpRate] = useState<number>(() => {
+    const saved = localStorage.getItem('vault_ph_fx_rate');
+    return saved ? Number(saved) : 58.5;
+  });
+
+  const [profitMarginPercent, setProfitMarginPercent] = useState<number>(() => {
+    const saved = localStorage.getItem('vault_ph_profit_margin');
+    return saved ? Number(saved) : 12; // Default 12% markup
+  });
+
+  const [paymentFeePercent, setPaymentFeePercent] = useState<number>(() => {
+    const saved = localStorage.getItem('vault_ph_gateway_fee');
+    return saved ? Number(saved) : 2.0; // Standard 2% gateway processing cost
+  });
+
+  const handleUpdateFxRate = (rate: number) => {
+    setUsdToPhpRate(rate);
+    localStorage.setItem('vault_ph_fx_rate', String(rate));
+  };
+
+  const handleUpdateProfitMargin = (margin: number) => {
+    setProfitMarginPercent(margin);
+    localStorage.setItem('vault_ph_profit_margin', String(margin));
+  };
+
+  const handleUpdatePaymentFee = (fee: number) => {
+    setPaymentFeePercent(fee);
+    localStorage.setItem('vault_ph_gateway_fee', String(fee));
+  };
 
   const loadSupplierData = async () => {
     try {
@@ -177,8 +207,105 @@ export const AdminSupplierPage: React.FC = () => {
           </div>
           <p className="mt-2 text-xs text-cyan-400 flex items-center gap-1">
             <Globe className="w-3.5 h-3.5" />
-            PH & Regional Catalogs Enabled
+            Global & Regional PH Coverage
           </p>
+        </div>
+      </div>
+
+      {/* Dynamic FX & Profit Margin Configuration Box */}
+      <div className="p-6 bg-[#08152A] border border-[#00CFFF]/20 rounded-2xl space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/5 pb-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-xl bg-[#00CFFF]/10 text-[#00CFFF]">
+              <Sliders className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="text-sm font-bold text-white uppercase tracking-wider">
+                Financial Controls: FX Rate & Profit Margins
+              </h2>
+              <p className="text-xs text-gray-400">
+                Adjust benchmark conversion and retail markup rules. Automatically computes live suggested selling prices.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-mono text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-lg flex items-center gap-1.5">
+              <TrendingUp className="w-3.5 h-3.5" />
+              Live Net Margin: +{profitMarginPercent}%
+            </span>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {/* USD to PHP Exchange Rate */}
+          <div className="bg-[#050B18] p-4 rounded-xl border border-white/5 space-y-2">
+            <label className="text-xs font-semibold text-gray-300 flex items-center justify-between">
+              <span>USD ➔ PHP Exchange Rate</span>
+              <span className="text-gray-500 font-mono">1 USD = ₱</span>
+            </label>
+            <div className="relative">
+              <input
+                type="number"
+                step="0.1"
+                min="50"
+                max="75"
+                value={usdToPhpRate}
+                onChange={(e) => handleUpdateFxRate(Number(e.target.value) || 58.5)}
+                className="w-full h-10 px-3 bg-[#08152A] border border-white/10 rounded-lg text-sm text-white font-mono font-bold focus:border-[#00CFFF] focus:outline-none"
+              />
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400 font-mono">
+                PHP
+              </span>
+            </div>
+            <p className="text-[11px] text-gray-500">Benchmark rate for wholesale conversion.</p>
+          </div>
+
+          {/* Retail Markup Margin */}
+          <div className="bg-[#050B18] p-4 rounded-xl border border-white/5 space-y-2">
+            <label className="text-xs font-semibold text-gray-300 flex items-center justify-between">
+              <span>Target Profit Markup</span>
+              <span className="text-emerald-400 font-mono font-bold">%{profitMarginPercent}</span>
+            </label>
+            <div className="relative">
+              <input
+                type="number"
+                step="1"
+                min="0"
+                max="100"
+                value={profitMarginPercent}
+                onChange={(e) => handleUpdateProfitMargin(Number(e.target.value) || 10)}
+                className="w-full h-10 px-3 bg-[#08152A] border border-white/10 rounded-lg text-sm text-emerald-400 font-mono font-bold focus:border-[#00CFFF] focus:outline-none"
+              />
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400 font-mono">
+                %
+              </span>
+            </div>
+            <p className="text-[11px] text-gray-500">Your net retail profit percentage over cost.</p>
+          </div>
+
+          {/* Gateway Processing Cost */}
+          <div className="bg-[#050B18] p-4 rounded-xl border border-white/5 space-y-2">
+            <label className="text-xs font-semibold text-gray-300 flex items-center justify-between">
+              <span>Gateway Overhead Buffer</span>
+              <span className="text-yellow-400 font-mono font-bold">%{paymentFeePercent}</span>
+            </label>
+            <div className="relative">
+              <input
+                type="number"
+                step="0.5"
+                min="0"
+                max="10"
+                value={paymentFeePercent}
+                onChange={(e) => handleUpdatePaymentFee(Number(e.target.value) || 2.0)}
+                className="w-full h-10 px-3 bg-[#08152A] border border-white/10 rounded-lg text-sm text-yellow-400 font-mono font-bold focus:border-[#00CFFF] focus:outline-none"
+              />
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400 font-mono">
+                %
+              </span>
+            </div>
+            <p className="text-[11px] text-gray-500">Buffer to cover GCash/Maya channel processing fees.</p>
+          </div>
         </div>
       </div>
 
@@ -275,7 +402,7 @@ export const AdminSupplierPage: React.FC = () => {
 
                 <div className="px-3 py-1.5 rounded-lg bg-[#050B18] border border-white/5 text-xs text-gray-400 flex items-center gap-2">
                   <Zap className="w-3.5 h-3.5 text-yellow-400" />
-                  <span>Est. FX: 1 USD ≈ {usdToPhpRate} PHP</span>
+                  <span>FX: 1 USD ≈ ₱{usdToPhpRate} | Margin: +{profitMarginPercent}%</span>
                 </div>
               </div>
 
@@ -306,16 +433,19 @@ export const AdminSupplierPage: React.FC = () => {
                           <th className="py-3 px-3">Package Name</th>
                           <th className="py-3 px-3">Package ID</th>
                           <th className="py-3 px-3 text-right">Wholesale (USD)</th>
-                          <th className="py-3 px-3 text-right">Wholesale (Est. PHP)</th>
-                          <th className="py-3 px-3 text-right">Suggested Retail</th>
+                          <th className="py-3 px-3 text-right">Wholesale (PHP)</th>
+                          <th className="py-3 px-3 text-right">Target Retail (PHP)</th>
+                          <th className="py-3 px-3 text-right">Est. Profit (PHP)</th>
                           <th className="py-3 px-3 text-center">Status</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-white/5">
                         {packages.map((pkg) => {
                           const costPhp = pkg.price_usd * usdToPhpRate;
-                          // 10% standard profit margin benchmark
-                          const suggestedRetailPhp = Math.ceil((costPhp * 1.10) / 5) * 5;
+                          const totalMultiplier = 1 + (profitMarginPercent + paymentFeePercent) / 100;
+                          // Round to nearest 5 pesos for clean commercial retail pricing
+                          const suggestedRetailPhp = Math.ceil((costPhp * totalMultiplier) / 5) * 5;
+                          const estNetProfitPhp = suggestedRetailPhp - costPhp - (suggestedRetailPhp * (paymentFeePercent / 100));
 
                           return (
                             <tr key={pkg.id} className="hover:bg-white/[0.02] transition">
@@ -333,6 +463,9 @@ export const AdminSupplierPage: React.FC = () => {
                               </td>
                               <td className="py-3 px-3 text-right font-mono text-emerald-400 font-bold">
                                 ₱{suggestedRetailPhp.toFixed(2)}
+                              </td>
+                              <td className="py-3 px-3 text-right font-mono text-cyan-400 font-bold">
+                                +₱{estNetProfitPhp.toFixed(2)}
                               </td>
                               <td className="py-3 px-3 text-center">
                                 <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${

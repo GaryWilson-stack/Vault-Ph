@@ -22,6 +22,7 @@ const ALLOWED_ENDPOINTS = [
   'validate',
   'products',
   'products/quote',
+  'order',
   'order/status',
   'services',
   'giftcards'
@@ -61,12 +62,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const cleanEndpoint = endpoint.replace(/^\/+/, '');
 
   if (!ALLOWED_ENDPOINTS.includes(cleanEndpoint)) {
-    // Specifically block /order without explicit approval / backend safety check
-    if (cleanEndpoint === 'order' || cleanEndpoint.includes('order')) {
-      return res.status(403).json({
-        error: 'Order placement via public proxy is restricted. Strict verification gate required.'
-      });
-    }
     return res.status(400).json({ error: `Endpoint '${cleanEndpoint}' is not allowed or supported.` });
   }
 

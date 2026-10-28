@@ -55,6 +55,23 @@ export interface EyadValidationResult {
   [key: string]: any;
 }
 
+export interface EyadOrderPlacementParams {
+  package_id: string | number;
+  user_id: string;
+  server?: string;
+  zone_id?: string;
+  payment_reference: string;
+  max_charge_usd?: number;
+}
+
+export interface EyadOrderResponse {
+  status: 'success' | 'failed' | 'pending' | 'processing';
+  order_id?: string | number;
+  charge_usd?: number;
+  message?: string;
+  [key: string]: any;
+}
+
 async function callEyadProxy<T>(endpoint: string, payload: Record<string, any> = {}): Promise<T> {
   const response = await fetch('/api/eyad', {
     method: 'POST',
@@ -134,5 +151,21 @@ export const eyadStoreService = {
     if (zoneId) payload.zone_id = zoneId;
 
     return callEyadProxy<EyadValidationResult>('validate', payload);
+  },
+
+  /**
+   * Place an automated fulfillment order with Eyad Store
+   * @param params EyadOrderPlacementParams
+   */
+  async placeOrder(params: EyadOrderPlacementParams): Promise<EyadOrderResponse> {
+    return callEyadProxy<EyadOrderResponse>('order', params);
+  },
+
+  /**
+   * Check status of a previously dispatched Eyad Store order
+   * @param orderId Eyad order identifier
+   */
+  async getOrderStatus(orderId: string | number): Promise<any> {
+    return callEyadProxy<any>('order/status', { order_id: orderId });
   }
 };

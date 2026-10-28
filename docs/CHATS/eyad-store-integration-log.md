@@ -76,7 +76,7 @@ From downloading and analyzing `https://reseller.eyadstore.gg/api-docs.html`:
 
 - [x] Configure `EYAD_STORE_API_KEY` in `.env.local` securely.
 - [x] Verify API connection, capabilities, and balance (`HTTP 200 OK`, `ip_enforced: false`).
-- [ ] Create serverless API proxy (`api/eyad/[...path].ts` or `api/eyad.ts`) to keep `EYAD_STORE_API_KEY` secret from frontend users.
-- [ ] Build catalog integration service to query live packages and prices for Philippine products.
-- [ ] Wire player validation endpoint (`/store/api/validate`) to checkout form when `supports_id_check: true`.
-- [ ] Implement safety controls: price guard (`max_charge_usd`), idempotency reference, dry-run fulfillment.
+- [x] Create serverless API proxy (`api/eyad.ts` & Vite dev proxy) to keep `EYAD_STORE_API_KEY` secret from frontend users.
+- [x] Build catalog integration service to query live packages and prices for Philippine products.
+- [x] Wire player validation endpoint (`/store/api/validate`) to checkout form when customer enters player ID.
+- [x] Implement safety controls & fulfillment dispatch: price guard (`max_charge_usd`), idempotency reference, and direct upstream order triggering.

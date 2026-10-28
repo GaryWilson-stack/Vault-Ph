@@ -4,6 +4,7 @@ import { MOCK_GAMES, MOCK_PRODUCTS, MOCK_PRODUCT_FIELDS } from '../data/mockData
 import { gamesService } from '../services/gamesService';
 import type { Game, Product, ProductField, PaymentMethodId } from '../types';
 import { ordersService } from '../services/ordersService';
+import { eyadStoreService } from '../services/eyadStoreService';
 import { useAuth } from '../context/AuthContext';
 import { 
   ShieldCheck, 
@@ -11,7 +12,8 @@ import {
   CheckCircle2, 
   AlertCircle,
   Loader2,
-  Gamepad2
+  Gamepad2,
+  UserCheck
 } from 'lucide-react';
 
 export const GameDetailPage: React.FC = () => {
@@ -33,6 +35,11 @@ export const GameDetailPage: React.FC = () => {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethodId>('gcash');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Eyad Store Live Validation State
+  const [validatingPlayer, setValidatingPlayer] = useState(false);
+  const [validatedAccountName, setValidatedAccountName] = useState<string | null>(null);
+  const [validationError, setValidationError] = useState<string | null>(null);
 
   // Load game, products, and dynamic fields
   useEffect(() => {
@@ -80,6 +87,55 @@ export const GameDetailPage: React.FC = () => {
   const handleFieldChange = (fieldName: string, value: string) => {
     setFieldValues((prev) => ({ ...prev, [fieldName]: value }));
     setErrorMsg(null);
+    setValidatedAccountName(null);
+    setValidationError(null);
+  };
+
+  // Helper mapping game slugs to Eyad Store API game identifiers
+  const getEyadGameId = (gameSlug?: string, gameId?: string): string => {
+    const slugLower = (gameSlug || gameId || '').toLowerCase();
+    if (slugLower.includes('mobile-legends') || slugLower.includes('mlbb')) return 'mlbb_ph';
+    if (slugLower.includes('valorant')) return 'valorant_ph';
+    if (slugLower.includes('genshin')) return 'genshin';
+    if (slugLower.includes('bloodstrike') || slugLower.includes('blood-strike')) return 'bloodstrike_ph';
+    if (slugLower.includes('free-fire') || slugLower.includes('freefire')) return 'freefire_ph';
+    if (slugLower.includes('call-of-duty') || slugLower.includes('codm')) return 'codm_ph';
+    return slugLower;
+  };
+
+  // Live Player Verification
+  const handleVerifyAccount = async () => {
+    const targetUserId = fieldValues['user_id'] || fieldValues['uid'] || fieldValues['riot_id'] || Object.values(fieldValues)[0];
+    if (!targetUserId || !targetUserId.trim()) {
+      setValidationError('Please enter your Player ID / User ID first.');
+      return;
+    }
+
+    const zoneOrServer = fieldValues['zone_id'] || fieldValues['server'] || undefined;
+    const eyadGame = getEyadGameId(game?.slug, game?.id);
+
+    try {
+      setValidatingPlayer(true);
+      setValidationError(null);
+      setValidatedAccountName(null);
+
+      const result = await eyadStoreService.validatePlayer(
+        eyadGame,
+        targetUserId.trim(),
+        zoneOrServer,
+        zoneOrServer
+      );
+
+      if (result.valid || result.username || result.nickname) {
+        setValidatedAccountName(result.username || result.nickname || 'Verified Player');
+      } else {
+        setValidationError(result.message || 'Player ID could not be confirmed. Please double-check.');
+      }
+    } catch (err: any) {
+      setValidationError(err.message || 'Verification service temporarily unavailable.');
+    } finally {
+      setValidatingPlayer(false);
+    }
   };
 
   // Payment Options
@@ -95,11 +151,25 @@ export const GameDetailPage: React.FC = () => {
   const paymentFee = selectedPaymentInfo?.fee ?? 0;
   const totalPrice = itemPrice + paymentFee;
 
-  const { user } = useAuth();
+  const { user, openAuthModal } = useAuth();
+
+  // Auto-fill customer email if logged in
+  useEffect(() => {
+    if (user?.email && !email) {
+      setEmail(user.email);
+    }
+  }, [user]);
 
   // Handle Checkout Submission
   const handleSubmitOrder = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Guard: Require customer account/sign-in before purchase
+    if (!user) {
+      setErrorMsg('You must have an account to place an order. Please sign in or register.');
+      openAuthModal('login', 'Please sign in or create an account to proceed with your order.');
+      return;
+    }
 
     if (!game) {
       setErrorMsg('Game details could not be loaded.');
@@ -276,6 +346,42 @@ export const GameDetailPage: React.FC = () => {
                   </div>
                 </div>
               )}
+
+              {/* Eyad Store Live Verification Action & Status Feedback */}
+              <div className="mt-4 pt-3 border-t border-[#0B1D36] flex flex-wrap items-center justify-between gap-3">
+                <button
+                  type="button"
+                  onClick={handleVerifyAccount}
+                  disabled={validatingPlayer}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-[#0B1D36] hover:bg-[#1677FF]/20 text-[#00CFFF] border border-[#00CFFF]/30 transition"
+                >
+                  {validatingPlayer ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      Checking ID...
+                    </>
+                  ) : (
+                    <>
+                      <UserCheck className="w-3.5 h-3.5" />
+                      Verify In-Game Nickname
+                    </>
+                  )}
+                </button>
+
+                {validatedAccountName && (
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-[#22C55E]/15 border border-[#22C55E]/40 text-xs font-bold text-[#22C55E]">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>In-Game Name: <strong>{validatedAccountName}</strong></span>
+                  </div>
+                )}
+
+                {validationError && (
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-rose-500/15 border border-rose-500/40 text-xs font-medium text-rose-400">
+                    <AlertCircle className="w-3.5 h-3.5" />
+                    <span>{validationError}</span>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Step 2: Select Top-Up Package */}
@@ -439,23 +545,34 @@ export const GameDetailPage: React.FC = () => {
 
             {/* Mobile Submit Button */}
             <div className="lg:hidden">
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="w-full py-4 text-sm font-bold text-white bg-gradient-to-r from-[#1677FF] to-[#00CFFF] rounded-xl hover:shadow-[0_0_20px_rgba(0,207,255,0.4)] transition-all cursor-pointer flex items-center justify-center gap-2"
-              >
-                {isSubmitting ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin text-white" />
-                    <span>Securing Order...</span>
-                  </>
-                ) : (
-                  <>
-                    <Zap className="w-4 h-4 fill-white" />
-                    <span>Proceed to Payment (₱{totalPrice.toFixed(2)})</span>
-                  </>
-                )}
-              </button>
+              {!user ? (
+                <button
+                  type="button"
+                  onClick={() => openAuthModal('login', 'Please sign in or create an account to proceed with your order.')}
+                  className="w-full py-4 text-sm font-bold text-white bg-gradient-to-r from-[#1677FF] to-[#00CFFF] rounded-xl hover:shadow-[0_0_20px_rgba(0,207,255,0.4)] transition-all cursor-pointer flex items-center justify-center gap-2"
+                >
+                  <Zap className="w-4 h-4 fill-white" />
+                  <span>Sign In to Complete Purchase</span>
+                </button>
+              ) : (
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="w-full py-4 text-sm font-bold text-white bg-gradient-to-r from-[#1677FF] to-[#00CFFF] rounded-xl hover:shadow-[0_0_20px_rgba(0,207,255,0.4)] transition-all cursor-pointer flex items-center justify-center gap-2"
+                >
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin text-white" />
+                      <span>Securing Order...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Zap className="w-4 h-4 fill-white" />
+                      <span>Proceed to Payment (₱{totalPrice.toFixed(2)})</span>
+                    </>
+                  )}
+                </button>
+              )}
             </div>
 
           </form>
@@ -503,24 +620,35 @@ export const GameDetailPage: React.FC = () => {
 
             {/* Desktop Pay CTA */}
             <div className="hidden lg:block pt-2">
-              <button
-                type="button"
-                onClick={handleSubmitOrder}
-                disabled={isSubmitting}
-                className="w-full py-4 text-sm font-bold text-white bg-gradient-to-r from-[#1677FF] to-[#00CFFF] rounded-xl hover:shadow-[0_0_20px_rgba(0,207,255,0.4)] transition-all transform hover:-translate-y-0.5 cursor-pointer flex items-center justify-center gap-2"
-              >
-                {isSubmitting ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin text-white" />
-                    <span>Securing Order...</span>
-                  </>
-                ) : (
-                  <>
-                    <Zap className="w-4 h-4 fill-white" />
-                    <span>Proceed to Payment</span>
-                  </>
-                )}
-              </button>
+              {!user ? (
+                <button
+                  type="button"
+                  onClick={() => openAuthModal('login', 'Please sign in or create an account to proceed with your order.')}
+                  className="w-full py-4 text-sm font-bold text-white bg-gradient-to-r from-[#1677FF] to-[#00CFFF] rounded-xl hover:shadow-[0_0_20px_rgba(0,207,255,0.4)] transition-all transform hover:-translate-y-0.5 cursor-pointer flex items-center justify-center gap-2"
+                >
+                  <Zap className="w-4 h-4 fill-white" />
+                  <span>Sign In to Complete Purchase</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleSubmitOrder}
+                  disabled={isSubmitting}
+                  className="w-full py-4 text-sm font-bold text-white bg-gradient-to-r from-[#1677FF] to-[#00CFFF] rounded-xl hover:shadow-[0_0_20px_rgba(0,207,255,0.4)] transition-all transform hover:-translate-y-0.5 cursor-pointer flex items-center justify-center gap-2"
+                >
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin text-white" />
+                      <span>Securing Order...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Zap className="w-4 h-4 fill-white" />
+                      <span>Proceed to Payment</span>
+                    </>
+                  )}
+                </button>
+              )}
             </div>
 
             {/* Trust badge list */}
